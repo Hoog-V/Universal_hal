@@ -29,6 +29,7 @@ if (PLATFORM_DEFINED MATCHES "^__SAMD21")
             "hal/platform/atmelsam/i2c_slave/i2c_slave.c"
             "hal/platform/atmelsam/spi_host/spi_host.c"
             "hal/platform/atmelsam/spi_slave/spi_slave.c"
+            "hal/platform/atmelsam/uart/uart.c"
             "hal/platform/atmelsam/dma/dma.c"
             )
     target_include_directories(Universal_hal PUBLIC "hal/" "utils/" "hal/platform/atmelsam/")
