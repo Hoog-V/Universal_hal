@@ -93,13 +93,31 @@ elseif(PLATFORM_DEFINED MATCHES "^PICO")
 elseif (PLATFORM_DEFINED MATCHES "^SOC_XWR68")
   set(UHAL_BUILD_TESTS NO)
   MESSAGE(STATUS "TI mmWave IWR68xx Platform detected!")
-  add_library(Universal_hal "hal/platform/ti/iwr68xx/gpio/gpio_iwr68xx.c"
-                            "hal/platform/ti/iwr68xx/pinmux/pinmux_iwr68xx.c"
-                            "hal/platform/ti/iwr68xx/uart/uart_iwr68xx.c"
-                            "hal/platform/ti/iwr68xx/soc/soc_iwr68xx.c"
-                            "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx.asm"
-                            "hal/platform/ti/iwr68xx/esm/esm_iwr68xx.c")
+
+  # esm_iwr68xx.c is the one file in this platform that #includes SYS/BIOS's
+  # own <ti/sysbios/family/arm/v7r/vim/Hwi.h> (it registers the ESM FIQ/IRQ
+  # through SYS/BIOS's Hwi_create() -- there's no register-only way to hook
+  # those vectors when SYS/BIOS owns the vector table). A bare-metal project
+  # that never calls esm_init() doesn't need this module at all, and
+  # shouldn't need a SYS/BIOS/XDCtools install just to satisfy its #includes
+  # -- set this to exclude it from the build entirely.
+  option(UHAL_DISABLE_ESM_MODULE "Disable the ESM module" NO)
+
+  set(UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/gpio/gpio_iwr68xx.c"
+                             "hal/platform/ti/iwr68xx/pinmux/pinmux_iwr68xx.c"
+                             "hal/platform/ti/iwr68xx/uart/uart_iwr68xx.c"
+                             "hal/platform/ti/iwr68xx/soc/soc_iwr68xx.c"
+                             "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx.asm")
+  if(NOT UHAL_DISABLE_ESM_MODULE)
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/esm/esm_iwr68xx.c")
+  endif()
+
+  add_library(Universal_hal ${UHAL_SOC_XWR68_SOURCES})
   target_include_directories(Universal_hal PUBLIC "hal/" "hal/platform/ti/iwr68xx")
+
+  if(UHAL_DISABLE_ESM_MODULE)
+    target_compile_definitions(Universal_hal PUBLIC "DISABLE_ESM_MODULE")
+  endif()
 else ()
   # You can define your OS here if desired
   MESSAGE(STATUS "No MCU platform selected!")
