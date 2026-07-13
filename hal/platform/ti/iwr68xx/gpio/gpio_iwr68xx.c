@@ -50,6 +50,16 @@ uhal_status_t gpio_set_pin_mode(const gpio_pin_t pin, gpio_mode_t pin_mode) {
     #ifdef TI_RTOS
     uintptr_t key = HwiP_disable();
     #endif
+    /* The GIO peripheral module comes out of a hardware reset itself and
+     * ignores DIR/DOUT/DSET/DCLR writes until this reset is released --
+     * confirmed on real AWR6843AOP hardware: without it, every other
+     * register in this file appears to work (writes don't fault, reads
+     * don't error) but the pin never actually toggles. There's no separate
+     * gpio_init() in this HAL's public API (hal_gpio.h) to put this in, so
+     * it lives here, in the function every caller is expected to call
+     * first for any pin they're about to use. Idempotent -- harmless to
+     * repeat on every call. */
+    GIO->GIOGCR.bit.RESET = 1;
     GIO->GIOPORT[GPIO_PORT(pin)].GIODIR.bit.DIR = ((pin_mode & 1) << GPIO_PIN(pin));
     #ifdef TI_RTOS
         HwiP_restore(key);
@@ -62,7 +72,11 @@ uhal_status_t gpio_set_pin_lvl(const gpio_pin_t pin, gpio_level_t level) {
     uintptr_t key = HwiP_disable();
     #endif
    if(level) {
-    GIO->GIOPORT[GPIO_PORT(pin)].GIODOUT.bit.DOUT = (1 << GPIO_PIN(pin));
+    /* GIODSET, not GIODOUT: GIODOUT is the raw output data register --
+     * writing it replaces the whole byte, clobbering every other pin on
+     * this port. GIODSET is the set-just-this-bit alias (matching GIODCLR
+     * below for the off case), so setting one pin doesn't affect others. */
+    GIO->GIOPORT[GPIO_PORT(pin)].GIODSET.bit.DSET = (1 << GPIO_PIN(pin));
    } else {
     GIO->GIOPORT[GPIO_PORT(pin)].GIODCLR.bit.DCLR = (1 << GPIO_PIN(pin));
    }

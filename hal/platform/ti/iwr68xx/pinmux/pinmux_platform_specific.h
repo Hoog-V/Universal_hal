@@ -226,10 +226,15 @@ typedef enum {
 #define MUX_FUNC_PIN_V16_EPWM2B       (pinmux_func_t)(11)
 #define MUX_FUNC_PIN_V16_EPWM3A       (pinmux_func_t)(12)
 
+/* MSS_UART_TX corrected from (2) to (5): TI's own pinmux_xwr68xx.h
+ * (SOC_XWR68XX_PINN5_PADBE_MSS_UARTA_TX) has no func=2 entry at all for
+ * this pad, and confirmed on real AWR6843AOP hardware that func=5 is what
+ * actually produces MSS_UARTA TX output here -- func=2 was simply wrong. */
 #define MUX_FUNC_PIN_U16_GPIO14       (pinmux_func_t)(0)
 #define MUX_FUNC_PIN_U16_RS232_TX     (pinmux_func_t)(1)
-#define MUX_FUNC_PIN_U16_MSS_UART_TX  (pinmux_func_t)(2)
-#define MUX_FUNC_PIN_U16_BSS_UART_TX  (pinmux_func_t)(6)
+#define MUX_FUNC_PIN_U16_MSS_UART_TX  (pinmux_func_t)(5)
+#define MUX_FUNC_PIN_U16_MSS_UARTB_TX (pinmux_func_t)(6)
+#define MUX_FUNC_PIN_U16_BSS_UART_TX  (pinmux_func_t)(7)
 #define MUX_FUNC_PIN_U16_CAN1_FD_TX   (pinmux_func_t)(10)
 #define MUX_FUNC_PIN_U16_I2C_SDA      (pinmux_func_t)(11)
 #define MUX_FUNC_PIN_U16_EPWM1A       (pinmux_func_t)(12)
