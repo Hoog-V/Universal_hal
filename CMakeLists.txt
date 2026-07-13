@@ -95,7 +95,9 @@ elseif (PLATFORM_DEFINED MATCHES "^SOC_XWR68")
   MESSAGE(STATUS "TI mmWave IWR68xx Platform detected!")
   add_library(Universal_hal "hal/platform/ti/iwr68xx/gpio/gpio_iwr68xx.c"
                             "hal/platform/ti/iwr68xx/pinmux/pinmux_iwr68xx.c"
-                            "hal/platform/ti/iwr68xx/uart/uart_iwr68xx.c")
+                            "hal/platform/ti/iwr68xx/uart/uart_iwr68xx.c"
+                            "hal/platform/ti/iwr68xx/soc/soc_iwr68xx.c"
+                            "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx.asm")
   target_include_directories(Universal_hal PUBLIC "hal/" "hal/platform/ti/iwr68xx")
 else ()
   # You can define your OS here if desired
