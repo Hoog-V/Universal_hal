@@ -102,14 +102,40 @@ elseif (PLATFORM_DEFINED MATCHES "^SOC_XWR68")
   # shouldn't need a SYS/BIOS/XDCtools install just to satisfy its #includes
   # -- set this to exclude it from the build entirely.
   option(UHAL_DISABLE_ESM_MODULE "Disable the ESM module" NO)
+  # SPI/DMA/Mailbox are all register-only drivers (no SYS/BIOS dependency,
+  # unlike ESM) -- these options exist for parity with the rest of this
+  # HAL's UHAL_DISABLE_*_MODULE pattern, letting a project drop them to
+  # save flash if it never uses them.
+  option(UHAL_DISABLE_SPI_HOST_MODULE "Disable the SPI host module" NO)
+  option(UHAL_DISABLE_DMA_MODULE "Disable the DMA module" NO)
+  option(UHAL_DISABLE_MAILBOX_MODULE "Disable the Mailbox module" NO)
 
   set(UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/gpio/gpio_iwr68xx.c"
                              "hal/platform/ti/iwr68xx/pinmux/pinmux_iwr68xx.c"
                              "hal/platform/ti/iwr68xx/uart/uart_iwr68xx.c"
-                             "hal/platform/ti/iwr68xx/soc/soc_iwr68xx.c"
-                             "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx.asm")
+                             "hal/platform/ti/iwr68xx/soc/soc_iwr68xx.c")
   if(NOT UHAL_DISABLE_ESM_MODULE)
     list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/esm/esm_iwr68xx.c")
+  endif()
+  if(NOT UHAL_DISABLE_SPI_HOST_MODULE)
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/spi_host/spi_host_iwr68xx.c")
+  endif()
+  if(NOT UHAL_DISABLE_DMA_MODULE)
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/dma/dma_iwr68xx.c")
+  endif()
+  if(NOT UHAL_DISABLE_MAILBOX_MODULE)
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/mailbox/mailbox_iwr68xx.c")
+  endif()
+
+  # soc_iwr68xx.c's MPU (CP15 c6) register access is hand-written assembly
+  # -- same uhal_mpu_* function names/signatures either way, but the two
+  # assemblers (TI armcl vs GNU as) use incompatible directive syntax, so
+  # this is two separate files rather than one conditionally-preprocessed
+  # one. CMAKE_C_COMPILER_ID is "TI" for armcl, "GNU" for arm-none-eabi-gcc.
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx_gnu.S")
+  else()
+    list(APPEND UHAL_SOC_XWR68_SOURCES "hal/platform/ti/iwr68xx/soc/soc_mpu_iwr68xx.asm")
   endif()
 
   add_library(Universal_hal ${UHAL_SOC_XWR68_SOURCES})
@@ -117,6 +143,15 @@ elseif (PLATFORM_DEFINED MATCHES "^SOC_XWR68")
 
   if(UHAL_DISABLE_ESM_MODULE)
     target_compile_definitions(Universal_hal PUBLIC "DISABLE_ESM_MODULE")
+  endif()
+  if(UHAL_DISABLE_SPI_HOST_MODULE)
+    target_compile_definitions(Universal_hal PUBLIC "DISABLE_SPI_HOST_MODULE")
+  endif()
+  if(UHAL_DISABLE_DMA_MODULE)
+    target_compile_definitions(Universal_hal PUBLIC "DISABLE_DMA_MODULE")
+  endif()
+  if(UHAL_DISABLE_MAILBOX_MODULE)
+    target_compile_definitions(Universal_hal PUBLIC "DISABLE_MAILBOX_MODULE")
   endif()
 else ()
   # You can define your OS here if desired
