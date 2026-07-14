@@ -53,6 +53,21 @@ extern "C" {
  */
 uhal_status_t soc_init(void);
 
+/**
+ * @brief IWR68xx only: releases the DSP (DSS) core from its post-download
+ *        halt so it begins executing. On this chip the DSP power domain
+ *        is OFF on POR (AWR6843 TRM s5.4.2) -- the bootloader powers it on
+ *        and downloads its program when loading a multicore flash image,
+ *        but leaves it halted; this call is what lets it actually run.
+ *        Only meaningful for projects that flash a DSS image alongside
+ *        this MSS one -- harmless but pointless otherwise. Call once,
+ *        after soc_init(), before anything that expects DSS to respond
+ *        (e.g. mailbox_init()/mailbox_write() to the DSS link).
+ * @return UHAL_STATUS_OK once the DSP reports powered-on,
+ *         UHAL_STATUS_ERROR if it never does within a bounded wait.
+ */
+uhal_status_t soc_unhalt_dss(void);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

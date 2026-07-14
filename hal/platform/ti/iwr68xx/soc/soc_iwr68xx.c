@@ -31,6 +31,10 @@
  * a stuck/absent BSS into a reported error instead of a silent hang. */
 #define SOC_APLL_CAL_TIMEOUT_ITERATIONS 0xFFFFFU
 
+/* Bounded poll count for the DSP power-on wait in soc_unhalt_dss() -- same
+ * reasoning as SOC_APLL_CAL_TIMEOUT_ITERATIONS above. */
+#define SOC_DSS_POWERON_TIMEOUT_ITERATIONS 0xFFFFFU
+
 /* CP15 c6 (MPU) access helpers -- see soc_mpu_iwr68xx.asm. */
 extern void uhal_mpu_enable(void);
 extern void uhal_mpu_disable(void);
@@ -178,6 +182,36 @@ uhal_status_t soc_init(void) {
         TOP_RCM->SECURECFGREG1 |= (TOPRCM_SECURECFGREG1_JTAGFIREWALLEN_MASK
                                     | TOPRCM_SECURECFGREG1_LOGGERFIREWALLEN_MASK);
     }
+
+    return UHAL_STATUS_OK;
+}
+
+/* Ported from the mmWave SDK's SOC_unhaltDSS() (soc_xwr68xx_mss.c): only
+ * releases a halt (GEMPWRSMCFG4.PWRSMLRSTHALT), it doesn't run the full
+ * "power on the DSP from cold" sequence documented elsewhere in the TRM --
+ * confirming the bootloader already powers DSS on and downloads its
+ * program (to L2) as part of loading a multicore flash image, leaving it
+ * halted for application software to release when ready. Skips the
+ * reference's conditional DSS_STC/PBIST clear (gated on a bootloader-
+ * specific self-test flag at a fixed address outside the DSSREG block
+ * modeled here, 0x50040014) -- not something a normal flash boot without
+ * a self-test trigger should ever hit; flagged here in case it turns out
+ * to matter on some board/revision. */
+uhal_status_t soc_unhalt_dss(void) {
+    volatile uint32_t timeout;
+
+    DSSREG->GEMPWRSMCFG4 &= ~DSSREG_GEMPWRSMCFG4_PWRSMLRSTHALT_BIT;
+
+    timeout = SOC_DSS_POWERON_TIMEOUT_ITERATIONS;
+    while ((DSSREG->GEMPWRSMCFG3 & DSSREG_GEMPWRSMCFG3_PWRSMMODESTATUS_MASK)
+           != (DSSREG_PWRSMMODESTATUS_ON << DSSREG_GEMPWRSMCFG3_PWRSMMODESTATUS_SHIFT)) {
+        if (timeout == 0U) {
+            return UHAL_STATUS_ERROR;
+        }
+        timeout--;
+    }
+
+    DSSREG->GEMPWRSMCFG4 &= ~DSSREG_GEMPWRSMCFG4_GEMEVENTMASK_BIT;
 
     return UHAL_STATUS_OK;
 }

@@ -40,13 +40,27 @@
 * multi-channel path is explicitly skipped whenever remoteEndpoint==BSS).
 *
 * Each of the four hardware register blocks (MSS_BSS, BSS_MSS, MSS_DSS,
-* DSS_MSS -- see AWR6843.h) multiplexes two single-bit doorbell lines: bit
-* 0 ("mailbox") signals a new message is ready; bit 1 ("mailbox ack")
-* signals the previous message on that same block was consumed. For a
-* given link (e.g. MSS<->BSS), MSS triggers bit 0 on the MSS_BSS block to
-* send, and observes bit 1 on the MSS_BSS block for BSS's acknowledgement;
-* MSS observes bit 0 on the BSS_MSS block to know BSS sent something, and
-* triggers bit 1 on the BSS_MSS block to acknowledge having read it.
+* DSS_MSS -- see AWR6843.h) multiplexes two single-bit doorbell lines, BOTH
+* driven by the SAME core -- the block's "owner": bit 0 ("mailbox") is that
+* core's new-message-for-my-peer flag; bit 1 ("mailbox ack") is that SAME
+* core's I-just-read-and-consumed-my-peer's-last-message flag. E.g. on the
+* MSS_DSS block, MSS alone drives both bits -- bit 0 when MSS has a new
+* message for DSS, bit 1 once MSS has finished reading DSS's last message
+* (which arrived over the *other* block, DSS_MSS). This was gotten wrong
+* in an earlier revision of this file (assumed bit 1 on a block reflects
+* the *reader* acking, i.e. DSS acking on MSS_DSS) -- confirmed against
+* the mmWave SDK's own per-core Mailbox_HwCfg values
+* (ti/drivers/mailbox/platform/mailbox_xwr68xx.c): each core's
+* Mailbox_readFlush() always writes bit 1 on its OWN baseLocalToRemote (=
+* the block it uses for its own outgoing messages), never on the block the
+* incoming message arrived on. So: to know "did my peer finish reading the
+* message I just sent", poll bit 1 on the block YOU use to *receive from*
+* them (your in_reg) -- that's the identical physical register as their
+* own baseLocalToRemote/out_reg. Confirmed on real hardware: after DSS
+* read+processed an MSS-sent message (and replied over the mailbox),
+* DSS_MSS's INT_STS_MASKED read back 0x2 (bit 1 set) while MSS_DSS's
+* stayed 0 -- exactly this model, and the opposite of what mailbox_write()
+* used to poll.
 */
 #include <hal_mailbox.h>
 #include <AWR6843.h>
@@ -97,8 +111,21 @@ uhal_status_t mailbox_init(const mailbox_peripheral_t mailbox_peripheral) {
     return UHAL_STATUS_OK;
 }
 
+/* Bound on the ack-wait loop below -- the mmWave SDK's own Mailbox_write()
+ * (MAILBOX_MODE_BLOCKING) waits forever, but this HAL has no OS/scheduler
+ * dependency to fall back on if the remote core never acks (e.g. it's
+ * still stuck in its own boot/init, or was never flashed/running at all)
+ * -- an unbounded wait here would permanently wedge any caller (confirmed:
+ * GCC_FreeRTOS_VitalSigns_MSS's CLI task locked up solid, unrecoverable
+ * without a board reset, sending a config message to a DSS that never
+ * acked). Large enough that a live peer's prompt ack is never mistaken for
+ * a timeout; this is a raw instruction-count spin, not calibrated to a
+ * real time unit. */
+#define MAILBOX_ACK_TIMEOUT_ITERATIONS 10000000U
+
 uhal_status_t mailbox_write(const mailbox_peripheral_t mailbox_peripheral, const uint8_t* write_buff, const size_t size) {
     mailbox_link_t link;
+    uint32_t timeout;
     if ((get_link(mailbox_peripheral, &link) != UHAL_STATUS_OK) || (write_buff == (const uint8_t*)0)) {
         return UHAL_STATUS_INVALID_PARAMETERS;
     }
@@ -115,11 +142,20 @@ uhal_status_t mailbox_write(const mailbox_peripheral_t mailbox_peripheral, const
     /* Trigger the "mailbox" line -- tells the remote core a message is ready. */
     link.out_reg->INT_TRIG = MAILBOX_INT_MAILBOX_BIT;
 
-    /* Block until the remote core acknowledges (its own readFlush) -- see
-     * this file's header for which bit means what on which block. */
-    while ((link.out_reg->INT_STS_MASKED & MAILBOX_INT_MAILBOX_ACK_BIT) == 0U) {
+    /* Wait for the remote core's ack that it read this message -- see this
+     * file's header for why that's link.in_reg (the remote peer's own
+     * baseLocalToRemote, the identical physical register from their side),
+     * not link.out_reg -- up to MAILBOX_ACK_TIMEOUT_ITERATIONS before
+     * giving up. */
+    for (timeout = MAILBOX_ACK_TIMEOUT_ITERATIONS; timeout != 0U; timeout--) {
+        if ((link.in_reg->INT_STS_MASKED & MAILBOX_INT_MAILBOX_ACK_BIT) != 0U) {
+            break;
+        }
     }
-    link.out_reg->INT_ACK = MAILBOX_INT_MAILBOX_ACK_BIT;
+    if (timeout == 0U) {
+        return UHAL_STATUS_ERROR;
+    }
+    link.in_reg->INT_ACK = MAILBOX_INT_MAILBOX_ACK_BIT;
 
     return UHAL_STATUS_OK;
 }

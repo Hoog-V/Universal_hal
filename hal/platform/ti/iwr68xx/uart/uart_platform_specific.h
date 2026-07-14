@@ -30,12 +30,14 @@
 
 /**
  * @brief The IWR68xx MSS has two SCI-based UART instances (MSS_SCIA,
- *        MSS_SCIB). Only MSS_SCIA is implemented so far -- it's the one
- *        wired to the EVM's USB-UART bridge on every board this HAL has
- *        been used with. UART_PERIPHERAL_MSS_SCIB is reserved for when
- *        that's needed; uhal_uart_init() et al. return
- *        UHAL_STATUS_INVALID_PARAMETERS for it today rather than silently
- *        doing nothing.
+ *        MSS_SCIB), register-identical at different base addresses --
+ *        both implemented in uart_iwr68xx.c's get_sci_inst(). MSS_SCIA is
+ *        the one wired to the EVM's USB-UART bridge on every board this
+ *        HAL has been used with; MSS_SCIB's physical routing (which pins,
+ *        whether it reaches an accessible header/USB bridge at all) is
+ *        board-specific and hasn't been cross-checked against a specific
+ *        EVM schematic -- see GCC_FreeRTOS_VitalSigns_MSS/src/main.c's
+ *        pinmux comment for the one place this HAL currently uses it.
  */
 typedef enum {
     UART_PERIPHERAL_MSS_SCIA,

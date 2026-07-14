@@ -32,14 +32,20 @@
 #include <AWR6843_SCI.h>
 
 /**
- * @brief Only MSS_SCIA is implemented -- see uart_platform_specific.h.
- * @return The SCI instance's register block, or NULL for an instance not
- *         implemented yet.
+ * @brief SCIA and SCIB are register-identical peripherals at different base
+ *        addresses (AWR6843.h's SCI_A/SCI_B), both on the default
+ *        always-enabled peripheral clock -- no RCM clock-gating step is
+ *        needed for either (confirmed against the mmWave SDK's own
+ *        UartSci driver, which has none), unlike e.g. MSS_RTIB's separate
+ *        watchdog clock domain (see AWR6843.h's RTIA/RTIB comment).
+ * @return The SCI instance's register block, or NULL for an unknown instance.
  */
 static volatile SCI_Type* get_sci_inst(const uart_peripheral_inst_t uart_peripheral) {
     switch (uart_peripheral) {
         case UART_PERIPHERAL_MSS_SCIA:
             return SCI_A;
+        case UART_PERIPHERAL_MSS_SCIB:
+            return SCI_B;
         default:
             return (volatile SCI_Type*)0;
     }
