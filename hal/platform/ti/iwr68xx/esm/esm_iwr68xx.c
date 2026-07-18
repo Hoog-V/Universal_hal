@@ -36,6 +36,15 @@
 #include <ti/sysbios/family/arm/v7r/vim/Hwi.h>
 #include <xdc/runtime/Error.h>
 
+#ifndef __TMS470__
+/* `interrupt` is TI armcl's function-attribute keyword marking an FIQ/IRQ
+ * entry point -- not recognized by any other compiler. Every real firmware
+ * build of this file is armcl (__TMS470__ always defined), so a no-op here
+ * only ever takes effect on a host unit-test build (gcc/clang), letting
+ * esm_high_priority_fiq() below compile there too. */
+#define interrupt
+#endif
+
 static esm_notify_params_t notify_params[ESM_MAX_NOTIFIERS];
 
 static void esm_process_interrupt(uint32_t vec) {
